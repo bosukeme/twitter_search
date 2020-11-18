@@ -1,0 +1,10 @@
+Flask
+flask_restful
+Werkzeug
+snscrape
+python-dotenv
+selenium
+langdetect
+pandas
+twint
+uwsgi
