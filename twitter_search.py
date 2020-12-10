@@ -14,6 +14,7 @@ from selenium.webdriver.chrome.options import Options
 options=Options()
 options.add_argument('--no-sandbox')
 options.add_argument('--disable-dev-shm-usage')
+options.add_argument('headless')
 
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -28,8 +29,8 @@ dotenv_path = join(dirname(__file__), '.env')
 load_dotenv(dotenv_path)
 MONGO_URL = os.environ.get('MONGO_URL')
 client= MongoClient(MONGO_URL, connect=False)
-db = client.twitter_user_info
-
+#db = client.twitter_user_info
+db = client.blovids
 
 def process_twitter_details(keyword):
     start_date = str(date.today() + timedelta(days=-14))
@@ -111,6 +112,7 @@ def process_usernames(list_usernames):
             user_bio_list.append(user_bio)
             user_profile_image_list.append(user_profile_image)
             print()
+            sleep(50)
 
         except:
             #print(username)
@@ -134,31 +136,33 @@ def process_usernames(list_usernames):
 def save_to_mongodb(merged_df):
 
     # Load in the instagram_user collection from MongoDB
-    twitter_medium_collections = db.twitter_medium_collections # similarly if 'testCollection' did not already exist, Mongo would create it
-    
-    cur = twitter_medium_collections.find() ##check the number before adding
+    #twitter_medium_collections = db.twitter_medium_collections # similarly if 'testCollection' did not already exist, Mongo would create it
+    med_collection = db.med_collection
+
+    #cur = twitter_medium_collections.find() ##check the number before adding
+    cur = med_collection.find()
     print('We had %s twitter_user entries at the start' % cur.count())
     
      ##search for the entities in the processed colection and store it as a list
-    tweet_ids = list(twitter_medium_collections.find({},{ "_id": 0, "tweet_id": 1})) 
+    tweet_ids = list(med_collection.find({},{ "_id": 0, "tweet_id": 1})) 
     tweet_ids = list((val for dic in tweet_ids for val in dic.values()))
 
     
     #loop throup the handles, and add only new enteries
     for username, tweet_id, text, date, links, tweet_url, twitter_name, twitter_bio, twitter_profile_image in merged_df[['username', 'tweet_id', 'text', 'date', 'links', 'tweet_url', 'twitter_name', 'twitter_bio', 'twitter_profile_image']].itertuples(index=False):
         if tweet_id  not in tweet_ids:
-            twitter_medium_collections.insert_one({"username": username, "tweet_id":tweet_id, "text":text, "date":date, "links":links, "tweet_url":tweet_url, 'twitter_name':twitter_name, 'twitter_bio':twitter_bio, 'twitter_profile_image':twitter_profile_image}) ####save the df to the collection
+            med_collection.insert_one({"username": username, "tweet_id":tweet_id, "text":text, "date":date, "links":links, "tweet_url":tweet_url, 'twitter_name':twitter_name, 'twitter_bio':twitter_bio, 'twitter_profile_image':twitter_profile_image}) ####save the df to the collection
     
     
   
-    cur = twitter_medium_collections.find() ##check the number after adding
+    cur = med_collection.find() ##check the number after adding
     print('We have %s twitter_user entries at the end' % cur.count())
     
 
 def search_db(usernames):
-    twitter_medium_collections = db.twitter_medium_collections
+    med_collection = db.med_collection
     
-    twitter_users=list(twitter_medium_collections.find({},{ "_id": 0, "username": 1})) 
+    twitter_users=list(med_collection.find({},{ "_id": 0, "username": 1})) 
     twitter_users=list((val for dic in twitter_users for val in dic.values()))
     
     new_usernames = []
@@ -183,8 +187,6 @@ def get_unscraped_items(user_name_df):
     dff['twitter_profile_image'] = profile_photos
     dff['username'] = handle_list
 
-    print(dff)
-
     return dff
 
 
@@ -196,7 +198,7 @@ def process_unscrapped_users(unscraped_users_list):
     biographies=[]
 
     for unscraped_user in unscraped_users_list:
-        with webdriver.Chrome(options=options, executable_path="C:\Program Files\chrome driver\chromedriver.exe") as driver:
+        with webdriver.Chrome(options=options, executable_path="/usr/lib/chromium-browser/chromedriver") as driver:
             driver.wait = WebDriverWait(driver, 5)
             
             url='https://twitter.com/'+ unscraped_user
@@ -258,8 +260,6 @@ def call_all_functions(keyword):
     user_name_df = user_name_df[user_name_df['twitter_name'] != 'NA']
 
     join_dfs = pd.concat([user_name_df, dff], ignore_index= True)
-    print(join_dfs)
-
 
     merged_df = df.merge(join_dfs, how='left', on='username')
     merged_df = merged_df.drop_duplicates( "tweet_id" , keep='first')
@@ -270,10 +270,10 @@ def call_all_functions(keyword):
     save_to_mongodb(merged_df)
 
     name_link_dict=[]
-    twitter_medium_collections = db.twitter_medium_collections
+    med_collection = db.med_collection
     for name in new_usernames:
         try:
-            cur = twitter_medium_collections.find_one({ "username": name})
+            cur = twitter_med_collections.find_one({ "username": name})
             cur_link = cur.get('links')
             name_link_pair = {name : cur_link}
             name_link_dict.append(name_link_pair)
@@ -283,4 +283,3 @@ def call_all_functions(keyword):
     return name_link_dict
 
 
-#call_all_functions("mediumarticles")
